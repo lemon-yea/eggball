@@ -15,17 +15,21 @@ export const Route = createFileRoute("/")({
 });
 
 // ---- Field constants ----
-const FIELD_W = 1200;
-const FIELD_H = 700;
-const PLAYER_R = 24;
-const BALL_R = 18;
-const GOAL_H = 220;
-const GOAL_DEPTH = 20;
+const FIELD_W = 900;
+const FIELD_H = 540;
+const PAD = 70; // padded canvas area around the field so goals + out-of-bounds are visible
+const CANVAS_W = FIELD_W + PAD * 2;
+const CANVAS_H = FIELD_H + PAD * 2;
+const PLAYER_R = 22;
+const BALL_R = 15;
+const GOAL_H = 200;
+const GOAL_DEPTH = 44;
 const PLAYER_SPEED = 320; // px/sec
 const BALL_FRICTION = 0.985;
-const BALL_MAX = 900;
-const KICK_POWER = 700;
+const BALL_MAX = 1100;
+const KICK_POWER = 780;
 const KICK_DURATION = 0.18; // seconds
+const KICK_REACH = 12; // extra px beyond touching to still land a kick
 const GAME_LENGTH = 5 * 60; // seconds
 const MERCY_LEAD = 5;
 
@@ -299,24 +303,23 @@ function EggballPage() {
         me.x += me.vx * dt;
         me.y += me.vy * dt;
 
-        // Clamp so player cannot leave the SCREEN entirely (they can leave the field though)
-        // The canvas viewport IS the field size + goal margins; clamp inside the canvas.
-        me.x = Math.max(PLAYER_R, Math.min(FIELD_W - PLAYER_R, me.x));
-        me.y = Math.max(PLAYER_R, Math.min(FIELD_H - PLAYER_R, me.y));
+        // Clamp to the CANVAS extents (not the field). Players can leave the field
+        // (walk behind the goals / into the out-of-bounds strip), but stay on-screen.
+        me.x = Math.max(-PAD + PLAYER_R, Math.min(FIELD_W + PAD - PLAYER_R, me.x));
+        me.y = Math.max(-PAD + PLAYER_R, Math.min(FIELD_H + PAD - PLAYER_R, me.y));
 
-        // Kick input
+        // Kick input — direction is from player center toward ball (contact point),
+        // so where you hit the ball determines where it goes (like Eggball/Beatball).
         if ((keys.has("x") || keys.has(" ")) && me.kickUntil < now) {
           me.kickUntil = now + KICK_DURATION * 1000;
-          // Attempt to kick the ball if close
           const bdx = ball.x - me.x;
           const bdy = ball.y - me.y;
           const bd = Math.hypot(bdx, bdy);
-          if (bd < PLAYER_R + BALL_R + 10) {
-            const dirX = me.lastDirX || (me.team === "red" ? 1 : -1);
-            const dirY = me.lastDirY || 0;
-            const nl = Math.hypot(dirX, dirY) || 1;
-            const nvx = (dirX / nl) * KICK_POWER;
-            const nvy = (dirY / nl) * KICK_POWER;
+          if (bd > 0 && bd < PLAYER_R + BALL_R + KICK_REACH) {
+            const nx = bdx / bd;
+            const ny = bdy / bd;
+            const nvx = nx * KICK_POWER;
+            const nvy = ny * KICK_POWER;
             if (hostId === myId) {
               ball.vx = nvx;
               ball.vy = nvy;
@@ -378,7 +381,9 @@ function EggballPage() {
           ball.vy = -ball.vy * 0.7;
         }
 
-        // Ball vs players: stops in front of them (touch), with pinch physics
+        // Ball vs players: loose realistic push. The ball only gains speed from the
+        // component of the player's velocity along the contact normal; it is NOT
+        // dragged sideways with the player, and it does NOT stop when the player stops.
         const allPlayers = Array.from(players.values());
         for (const p of allPlayers) {
           const dx = ball.x - p.x;
@@ -388,43 +393,42 @@ function EggballPage() {
           if (d > 0 && d < minD) {
             const nx = dx / d;
             const ny = dy / d;
-            // Push ball out
+            // Resolve overlap (positional only)
             const overlap = minD - d;
             ball.x += nx * overlap;
             ball.y += ny * overlap;
-            // If player is moving into the ball, ball takes their velocity (dribble/touch)
-            const pv = Math.hypot(p.vx, p.vy);
-            const intoBall = p.vx * nx + p.vy * ny; // positive = moving toward ball
-            if (intoBall > 0) {
-              // Simulate a "touch": ball takes player's velocity component along their heading, damped
-              ball.vx = p.vx * 0.9;
-              ball.vy = p.vy * 0.9;
-            } else {
-              // Ball hits stationary player - stop
-              ball.vx = 0;
-              ball.vy = 0;
+
+            // Transfer only the player's normal-component speed to the ball, and only
+            // if it's greater than the ball's current normal-component speed.
+            const playerAlong = p.vx * nx + p.vy * ny;
+            const ballAlong = ball.vx * nx + ball.vy * ny;
+            if (playerAlong > ballAlong) {
+              const delta = playerAlong - ballAlong;
+              ball.vx += nx * delta;
+              ball.vy += ny * delta;
             }
 
-            // Pinch detection: another player on the opposite side pushing into the ball too?
+            // Pinch detection: another player pressing into the ball from the opposite side,
+            // AND neither contact is against a wall (pure player-vs-player pinch).
             for (const q of allPlayers) {
               if (q.id === p.id) continue;
               const qdx = ball.x - q.x;
               const qdy = ball.y - q.y;
               const qd = Math.hypot(qdx, qdy);
-              if (qd < minD + 4) {
+              if (qd > 0 && qd < minD + 2) {
                 const qnx = qdx / qd;
                 const qny = qdy / qd;
-                // opposite direction?
-                if (qnx * nx + qny * ny < -0.3) {
-                  const qInto = q.vx * qnx + q.vy * qny;
-                  if (qInto > 0 && intoBall > 0) {
-                    // Pinch! Escape perpendicular
+                if (qnx * nx + qny * ny < -0.5) {
+                  const pInto = p.vx * -nx + p.vy * -ny; // p pressing toward ball
+                  const qInto = q.vx * -qnx + q.vy * -qny;
+                  if (pInto > 40 && qInto > 40) {
+                    // Escape perpendicular to the squeeze axis
                     const perpX = -ny;
                     const perpY = nx;
-                    // Choose perpendicular direction with more open space (away from center bias)
-                    const sign = (ball.y < FIELD_H / 2 ? -1 : 1);
-                    ball.vx = perpX * sign * KICK_POWER * 1.2;
-                    ball.vy = perpY * sign * KICK_POWER * 1.2;
+                    // Pick the side further from the field center vertically
+                    const sign = ball.y < FIELD_H / 2 ? -1 : 1;
+                    ball.vx = perpX * sign * KICK_POWER * 1.1;
+                    ball.vy = perpY * sign * KICK_POWER * 1.1;
                   }
                 }
               }
@@ -482,12 +486,19 @@ function EggballPage() {
       if (!c) return;
       const ctx = c.getContext("2d");
       if (!ctx) return;
+      // Clear whole canvas (out-of-bounds strip)
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+      ctx.save();
+      ctx.translate(PAD, PAD);
+
       // Field background
       ctx.fillStyle = "#1f7a3a";
       ctx.fillRect(0, 0, FIELD_W, FIELD_H);
       // Stripes
       ctx.fillStyle = "rgba(255,255,255,0.04)";
-      const stripe = 80;
+      const stripe = 70;
       for (let i = 0; i < FIELD_W; i += stripe * 2) ctx.fillRect(i, 0, stripe, FIELD_H);
       // Border
       ctx.strokeStyle = "white";
@@ -500,21 +511,22 @@ function EggballPage() {
       ctx.stroke();
       // Center circle
       ctx.beginPath();
-      ctx.arc(FIELD_W / 2, FIELD_H / 2, 80, 0, Math.PI * 2);
+      ctx.arc(FIELD_W / 2, FIELD_H / 2, 70, 0, Math.PI * 2);
       ctx.stroke();
-      // Goals
+      // Goals (fully visible boxes extending OUT from the field)
       const gy = FIELD_H / 2 - GOAL_H / 2;
-      ctx.fillStyle = "rgba(220,50,50,0.35)";
-      ctx.fillRect(-GOAL_DEPTH, gy, GOAL_DEPTH + 6, GOAL_H);
-      ctx.fillStyle = "rgba(50,110,220,0.35)";
-      ctx.fillRect(FIELD_W - 6, gy, GOAL_DEPTH + 6, GOAL_H);
-      ctx.strokeStyle = "#ff5555";
-      ctx.strokeRect(0, gy, 6, GOAL_H);
-      ctx.strokeStyle = "#5588ff";
-      ctx.strokeRect(FIELD_W - 6, gy, 6, GOAL_H);
+      ctx.fillStyle = "rgba(220,50,50,0.30)";
+      ctx.fillRect(-GOAL_DEPTH, gy, GOAL_DEPTH, GOAL_H);
+      ctx.fillStyle = "rgba(50,110,220,0.30)";
+      ctx.fillRect(FIELD_W, gy, GOAL_DEPTH, GOAL_H);
+      // Goal posts / frame
+      ctx.strokeStyle = "#ff6666";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(-GOAL_DEPTH, gy, GOAL_DEPTH, GOAL_H);
+      ctx.strokeStyle = "#6699ff";
+      ctx.strokeRect(FIELD_W, gy, GOAL_DEPTH, GOAL_H);
 
       // Players
-      const me = players.get(myId);
       const now = performance.now();
       const all = Array.from(players.values());
       for (const p of all) {
@@ -548,7 +560,7 @@ function EggballPage() {
         ctx.fillStyle = "rgba(0,0,0,0.35)";
         ctx.fillRect(0, 0, FIELD_W, FIELD_H);
         ctx.fillStyle = "white";
-        ctx.font = "bold 160px sans-serif";
+        ctx.font = "bold 140px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(String(Math.ceil(countdown)), FIELD_W / 2, FIELD_H / 2);
@@ -557,15 +569,17 @@ function EggballPage() {
         ctx.fillStyle = "rgba(0,0,0,0.55)";
         ctx.fillRect(0, 0, FIELD_W, FIELD_H);
         ctx.fillStyle = "white";
-        ctx.font = "bold 72px sans-serif";
+        ctx.font = "bold 64px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         const text =
           winner === "draw" ? "Draw!" : winner === "red" ? "Red wins!" : winner === "blue" ? "Blue wins!" : "";
         ctx.fillText(text, FIELD_W / 2, FIELD_H / 2);
-        ctx.font = "24px sans-serif";
-        ctx.fillText(`Final: Red ${scoreRed} - ${scoreBlue} Blue`, FIELD_W / 2, FIELD_H / 2 + 60);
+        ctx.font = "22px sans-serif";
+        ctx.fillText(`Final: Red ${scoreRed} - ${scoreBlue} Blue`, FIELD_W / 2, FIELD_H / 2 + 50);
       }
+
+      ctx.restore();
     }
 
     requestAnimationFrame(tick);
@@ -589,11 +603,11 @@ function EggballPage() {
         <span className="text-neutral-300 text-lg">{mm}:{ss}</span>
         <span className="text-blue-400">{score.blue} BLUE</span>
       </div>
-      <div className="relative" style={{ width: FIELD_W, maxWidth: "100%" }}>
+      <div className="relative" style={{ width: CANVAS_W, maxWidth: "100%" }}>
         <canvas
           ref={canvasRef}
-          width={FIELD_W}
-          height={FIELD_H}
+          width={CANVAS_W}
+          height={CANVAS_H}
           style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
         />
         {!joined && (
