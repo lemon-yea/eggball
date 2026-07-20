@@ -76,11 +76,13 @@ function EggballPage() {
   const [team, setTeam] = useState<Team>(null);
   const [joined, setJoined] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [nameInput, setNameInput] = useState("");
   const [score, setScore] = useState({ red: 0, blue: 0, timeLeft: GAME_LENGTH, countdown: 0, ended: false, winner: null as Team | "draw" });
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const myIdRef = useRef<string>(makeId());
   const teamRef = useRef<Team>(null);
   const joinedRef = useRef(false);
+  const nameRef = useRef<string>("");
 
   useEffect(() => {
     teamRef.current = team;
