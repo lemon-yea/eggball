@@ -157,9 +157,11 @@ function EggballPage() {
       countdown = payload.countdown;
       ended = payload.ended;
       winner = payload.winner;
+      intermission = payload.intermission ?? 0;
       hostId = payload.hostId;
-      setScore({ red: scoreRed, blue: scoreBlue, timeLeft, countdown, ended, winner });
+      setScore({ red: scoreRed, blue: scoreBlue, timeLeft, countdown, ended, winner, intermission });
     });
+
     channel.on("presence", { event: "sync" }, () => {
       const state = channel.presenceState() as Record<string, Array<{ id: string }>>;
       const ids = new Set<string>();
