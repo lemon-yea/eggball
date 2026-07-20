@@ -413,10 +413,14 @@ function EggballPage() {
           }
         }
 
-        // Ball vs players: loose realistic push. The ball only gains speed from the
-        // component of the player's velocity along the contact normal; it is NOT
-        // dragged sideways with the player, and it does NOT stop when the player stops.
+        // Ball vs players: loose, realistic push. While in contact and NOT recently
+        // kicked, the ball's velocity along the contact normal is forced to match the
+        // player's normal-component velocity. So pushing rolls the ball forward, and
+        // the moment the player stops moving, the ball also stops (no drift, no
+        // slingshot). Tangential (sideways) motion is heavily damped so the ball
+        // does not stick to the player when they move sideways past it.
         const allPlayers = Array.from(players.values());
+        const recentlyKicked = now - ballKickedAt < 140;
         for (const p of allPlayers) {
           const dx = ball.x - p.x;
           const dy = ball.y - p.y;
@@ -430,14 +434,19 @@ function EggballPage() {
             ball.x += nx * overlap;
             ball.y += ny * overlap;
 
-            // Transfer only the player's normal-component speed to the ball, and only
-            // if it's greater than the ball's current normal-component speed.
-            const playerAlong = p.vx * nx + p.vy * ny;
-            const ballAlong = ball.vx * nx + ball.vy * ny;
-            if (playerAlong > ballAlong) {
-              const delta = playerAlong - ballAlong;
-              ball.vx += nx * delta;
-              ball.vy += ny * delta;
+            if (!recentlyKicked) {
+              const playerAlong = Math.max(0, p.vx * nx + p.vy * ny);
+              // Force ball's normal component to equal the player's push speed.
+              const ballAlong = ball.vx * nx + ball.vy * ny;
+              const dAlong = playerAlong - ballAlong;
+              ball.vx += nx * dAlong;
+              ball.vy += ny * dAlong;
+              // Damp tangential component so ball doesn't get dragged sideways.
+              const tx = -ny;
+              const ty = nx;
+              const ballTan = ball.vx * tx + ball.vy * ty;
+              ball.vx -= tx * ballTan * 0.6;
+              ball.vy -= ty * ballTan * 0.6;
             }
 
             // Pinch detection: another player pressing into the ball from the opposite side,
