@@ -436,7 +436,6 @@ function EggballPage() {
           }
         }
       }
-      }
 
       function checkEnd() {
         const lead = Math.abs(scoreRed - scoreBlue);
