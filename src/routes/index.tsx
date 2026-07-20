@@ -329,6 +329,7 @@ function EggballPage() {
             if (hostId === myId) {
               ball.vx = nvx;
               ball.vy = nvy;
+              ballKickedAt = now;
             } else {
               channel.send({ type: "broadcast", event: "kick", payload: { bx: ball.x, by: ball.y, bvx: nvx, bvy: nvy } });
             }
