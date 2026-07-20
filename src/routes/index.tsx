@@ -15,23 +15,25 @@ export const Route = createFileRoute("/")({
 });
 
 // ---- Field constants ----
-const FIELD_W = 640;
-const FIELD_H = 380;
-const PAD = 50; // padded canvas area around the field so goals + out-of-bounds are visible
+const FIELD_W = 1400;
+const FIELD_H = 720;
+const PAD = 70; // padded canvas area around the field so goals + out-of-bounds are visible
 const CANVAS_W = FIELD_W + PAD * 2;
 const CANVAS_H = FIELD_H + PAD * 2;
-const PLAYER_R = 14;
-const BALL_R = 10;
-const GOAL_H = 140;
-const GOAL_DEPTH = 32;
-const PLAYER_SPEED = 230; // px/sec
-const BALL_FRICTION = 0.985;
-const BALL_MAX = 800;
-const KICK_POWER = 560;
+const PLAYER_R = 20;
+const BALL_R = 14;
+const GOAL_H = 220;
+const GOAL_DEPTH = 46;
+const POST_R = 8;
+const PLAYER_SPEED = 190; // px/sec
+const BALL_FRICTION = 0.965;
+const BALL_MAX = 900;
+const KICK_POWER = 380;
 const KICK_DURATION = 0.18; // seconds
-const KICK_REACH = 8; // extra px beyond touching to still land a kick
+const KICK_REACH = 10; // extra px beyond touching to still land a kick
 const GAME_LENGTH = 5 * 60; // seconds
 const MERCY_LEAD = 5;
+const CANVAS_ASPECT = CANVAS_W / CANVAS_H;
 
 type Team = "red" | "blue" | null;
 
@@ -74,11 +76,13 @@ function EggballPage() {
   const [team, setTeam] = useState<Team>(null);
   const [joined, setJoined] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [nameInput, setNameInput] = useState("");
   const [score, setScore] = useState({ red: 0, blue: 0, timeLeft: GAME_LENGTH, countdown: 0, ended: false, winner: null as Team | "draw" });
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const myIdRef = useRef<string>(makeId());
   const teamRef = useRef<Team>(null);
   const joinedRef = useRef(false);
+  const nameRef = useRef<string>("");
 
   useEffect(() => {
     teamRef.current = team;
@@ -99,6 +103,7 @@ function EggballPage() {
     let ended = false;
     let winner: Team | "draw" = null as Team | "draw";
     let hostId = myId;
+    let ballKickedAt = 0;
     const knownIds = new Set<string>([myId]);
 
     const keys = new Set<string>();
@@ -134,6 +139,7 @@ function EggballPage() {
         ball.y = payload.by;
         ball.vx = payload.bvx;
         ball.vy = payload.bvy;
+        ballKickedAt = performance.now();
       }
     });
     channel.on("broadcast", { event: "state" }, ({ payload }: { payload: GameState }) => {
@@ -213,11 +219,12 @@ function EggballPage() {
           kickUntil: 0,
           lastDirX: t === "red" ? 1 : -1,
           lastDirY: 0,
-          name: "",
+          name: nameRef.current || `Player ${players.size + 1}`,
         };
         players.set(myId, me);
       }
       if (me.team !== t) me.team = t;
+      if (nameRef.current && me.name !== nameRef.current) me.name = nameRef.current;
       return me;
     }
 
@@ -323,6 +330,7 @@ function EggballPage() {
             if (hostId === myId) {
               ball.vx = nvx;
               ball.vy = nvy;
+              ballKickedAt = now;
             } else {
               channel.send({ type: "broadcast", event: "kick", payload: { bx: ball.x, by: ball.y, bvx: nvx, bvy: nvy } });
             }
@@ -346,16 +354,14 @@ function EggballPage() {
 
         // Wall collision - but goal openings on left/right
         const inGoalY = ball.y > FIELD_H / 2 - GOAL_H / 2 && ball.y < FIELD_H / 2 + GOAL_H / 2;
-        // Left wall / red goal
         if (ball.x - BALL_R < 0) {
           if (inGoalY && goalCooldown <= 0) {
-            // Blue scored
             scoreBlue += 1;
             goalCooldown = 3;
             countdown = 3;
             checkEnd();
             resetPositions();
-          } else {
+          } else if (!inGoalY) {
             ball.x = BALL_R;
             ball.vx = -ball.vx * 0.7;
           }
@@ -367,7 +373,7 @@ function EggballPage() {
             countdown = 3;
             checkEnd();
             resetPositions();
-          } else {
+          } else if (!inGoalY) {
             ball.x = FIELD_W - BALL_R;
             ball.vx = -ball.vx * 0.7;
           }
@@ -381,10 +387,40 @@ function EggballPage() {
           ball.vy = -ball.vy * 0.7;
         }
 
-        // Ball vs players: loose realistic push. The ball only gains speed from the
-        // component of the player's velocity along the contact normal; it is NOT
-        // dragged sideways with the player, and it does NOT stop when the player stops.
+        // Goal post collisions — solid bumpers at the corners of each goal opening
+        const gYPost = FIELD_H / 2 - GOAL_H / 2;
+        const posts = [
+          { x: 0, y: gYPost },
+          { x: 0, y: gYPost + GOAL_H },
+          { x: FIELD_W, y: gYPost },
+          { x: FIELD_W, y: gYPost + GOAL_H },
+        ];
+        for (const post of posts) {
+          const dx = ball.x - post.x;
+          const dy = ball.y - post.y;
+          const d = Math.hypot(dx, dy);
+          const minD = BALL_R + POST_R;
+          if (d > 0 && d < minD) {
+            const nx = dx / d;
+            const ny = dy / d;
+            ball.x = post.x + nx * minD;
+            ball.y = post.y + ny * minD;
+            const vn = ball.vx * nx + ball.vy * ny;
+            if (vn < 0) {
+              ball.vx -= 2 * vn * nx * 0.85;
+              ball.vy -= 2 * vn * ny * 0.85;
+            }
+          }
+        }
+
+        // Ball vs players: loose, realistic push. While in contact and NOT recently
+        // kicked, the ball's velocity along the contact normal is forced to match the
+        // player's normal-component velocity. So pushing rolls the ball forward, and
+        // the moment the player stops moving, the ball also stops (no drift, no
+        // slingshot). Tangential (sideways) motion is heavily damped so the ball
+        // does not stick to the player when they move sideways past it.
         const allPlayers = Array.from(players.values());
+        const recentlyKicked = now - ballKickedAt < 140;
         for (const p of allPlayers) {
           const dx = ball.x - p.x;
           const dy = ball.y - p.y;
@@ -398,14 +434,19 @@ function EggballPage() {
             ball.x += nx * overlap;
             ball.y += ny * overlap;
 
-            // Transfer only the player's normal-component speed to the ball, and only
-            // if it's greater than the ball's current normal-component speed.
-            const playerAlong = p.vx * nx + p.vy * ny;
-            const ballAlong = ball.vx * nx + ball.vy * ny;
-            if (playerAlong > ballAlong) {
-              const delta = playerAlong - ballAlong;
-              ball.vx += nx * delta;
-              ball.vy += ny * delta;
+            if (!recentlyKicked) {
+              const playerAlong = Math.max(0, p.vx * nx + p.vy * ny);
+              // Force ball's normal component to equal the player's push speed.
+              const ballAlong = ball.vx * nx + ball.vy * ny;
+              const dAlong = playerAlong - ballAlong;
+              ball.vx += nx * dAlong;
+              ball.vy += ny * dAlong;
+              // Damp tangential component so ball doesn't get dragged sideways.
+              const tx = -ny;
+              const ty = nx;
+              const ballTan = ball.vx * tx + ball.vy * ty;
+              ball.vx -= tx * ballTan * 0.6;
+              ball.vy -= ty * ballTan * 0.6;
             }
 
             // Pinch detection: another player pressing into the ball from the opposite side,
@@ -519,12 +560,26 @@ function EggballPage() {
       ctx.fillRect(-GOAL_DEPTH, gy, GOAL_DEPTH, GOAL_H);
       ctx.fillStyle = "rgba(50,110,220,0.30)";
       ctx.fillRect(FIELD_W, gy, GOAL_DEPTH, GOAL_H);
-      // Goal posts / frame
+      // Goal frame
       ctx.strokeStyle = "#ff6666";
       ctx.lineWidth = 4;
       ctx.strokeRect(-GOAL_DEPTH, gy, GOAL_DEPTH, GOAL_H);
       ctx.strokeStyle = "#6699ff";
       ctx.strokeRect(FIELD_W, gy, GOAL_DEPTH, GOAL_H);
+      // Solid goal posts (bumpers)
+      const drawPost = (x: number, y: number, color: string) => {
+        ctx.beginPath();
+        ctx.arc(x, y, POST_R, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      };
+      drawPost(0, gy, "#ffdddd");
+      drawPost(0, gy + GOAL_H, "#ffdddd");
+      drawPost(FIELD_W, gy, "#ddeaff");
+      drawPost(FIELD_W, gy + GOAL_H, "#ddeaff");
 
       // Players
       const now = performance.now();
@@ -538,12 +593,18 @@ function EggballPage() {
         ctx.lineWidth = 3;
         ctx.strokeStyle = kicking ? "#ffffff" : "#000000";
         ctx.stroke();
-        if (p.id === myId) {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, PLAYER_R + 4, 0, Math.PI * 2);
-          ctx.strokeStyle = "rgba(255,255,255,0.5)";
-          ctx.lineWidth = 2;
-          ctx.stroke();
+        // Name tag
+        if (p.name) {
+          const raw = p.name;
+          const display = raw.length > 6 ? raw.slice(0, 6) + "..." : raw;
+          ctx.font = "bold 16px sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = "rgba(0,0,0,0.75)";
+          ctx.strokeText(display, p.x, p.y + PLAYER_R + 4);
+          ctx.fillStyle = p.team === "red" ? "#ff6b6b" : "#6ea8ff";
+          ctx.fillText(display, p.x, p.y + PLAYER_R + 4);
         }
       }
       // Ball
@@ -596,36 +657,58 @@ function EggballPage() {
   const mm = Math.floor(score.timeLeft / 60);
   const ss = Math.floor(score.timeLeft % 60).toString().padStart(2, "0");
 
+  const joinWith = (t: Exclude<Team, null>) => {
+    const trimmed = nameInput.trim().slice(0, 12);
+    const finalName = trimmed || `Player ${Math.floor(Math.random() * 999) + 1}`;
+    nameRef.current = finalName;
+    setTeam(t);
+    setJoined(true);
+  };
+
   return (
-    <div className="min-h-screen bg-neutral-900 text-white flex flex-col items-center py-4 gap-3">
-      <div className="flex items-center gap-6 text-2xl font-bold">
+    <div className="h-screen w-screen bg-neutral-900 text-white flex flex-col items-center overflow-hidden">
+      <div className="flex items-center gap-6 text-2xl font-bold py-2 shrink-0">
         <span className="text-red-400">RED {score.red}</span>
-        <span className="text-neutral-300 text-lg">{mm}:{ss}</span>
+        <span className="text-neutral-300 text-lg tabular-nums">{mm}:{ss}</span>
         <span className="text-blue-400">{score.blue} BLUE</span>
       </div>
-      <div className="relative" style={{ width: CANVAS_W, maxWidth: "100%" }}>
+      <div
+        className="relative"
+        style={{
+          width: `min(100vw, calc((100vh - 80px) * ${CANVAS_ASPECT}))`,
+          aspectRatio: `${CANVAS_W} / ${CANVAS_H}`,
+        }}
+      >
         <canvas
           ref={canvasRef}
           width={CANVAS_W}
           height={CANVAS_H}
-          style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
+          style={{ width: "100%", height: "100%", display: "block", borderRadius: 8 }}
         />
         {!joined && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/70 rounded-lg">
             <div className="bg-neutral-800 rounded-xl p-8 shadow-2xl text-center max-w-sm">
               <h1 className="text-3xl font-bold mb-2">Eggball</h1>
-              <p className="text-neutral-400 mb-6 text-sm">
+              <p className="text-neutral-400 mb-4 text-sm">
                 Pick a team to jump in. WASD/arrows to move. X or Space to kick.
               </p>
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value.slice(0, 12))}
+                maxLength={12}
+                placeholder="Your name (optional, max 12)"
+                className="w-full px-3 py-2 mb-5 rounded-md bg-neutral-700 text-white placeholder-neutral-400 outline-none focus:ring-2 focus:ring-white/40 text-center"
+              />
               <div className="flex gap-3 justify-center">
                 <button
-                  onClick={() => { setTeam("red"); setJoined(true); }}
+                  onClick={() => joinWith("red")}
                   className="px-6 py-3 rounded-lg bg-red-500 hover:bg-red-400 font-bold"
                 >
                   Join Red
                 </button>
                 <button
-                  onClick={() => { setTeam("blue"); setJoined(true); }}
+                  onClick={() => joinWith("blue")}
                   className="px-6 py-3 rounded-lg bg-blue-500 hover:bg-blue-400 font-bold"
                 >
                   Join Blue
@@ -638,7 +721,6 @@ function EggballPage() {
           </div>
         )}
       </div>
-      <div className="text-xs text-neutral-500">Move: WASD/Arrows &middot; Kick: X or Space</div>
     </div>
   );
 }
