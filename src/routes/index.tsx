@@ -15,23 +15,25 @@ export const Route = createFileRoute("/")({
 });
 
 // ---- Field constants ----
-const FIELD_W = 640;
-const FIELD_H = 380;
-const PAD = 50; // padded canvas area around the field so goals + out-of-bounds are visible
+const FIELD_W = 1400;
+const FIELD_H = 720;
+const PAD = 70; // padded canvas area around the field so goals + out-of-bounds are visible
 const CANVAS_W = FIELD_W + PAD * 2;
 const CANVAS_H = FIELD_H + PAD * 2;
-const PLAYER_R = 14;
-const BALL_R = 10;
-const GOAL_H = 140;
-const GOAL_DEPTH = 32;
-const PLAYER_SPEED = 230; // px/sec
-const BALL_FRICTION = 0.985;
-const BALL_MAX = 800;
-const KICK_POWER = 560;
+const PLAYER_R = 20;
+const BALL_R = 14;
+const GOAL_H = 220;
+const GOAL_DEPTH = 46;
+const POST_R = 8;
+const PLAYER_SPEED = 190; // px/sec
+const BALL_FRICTION = 0.965;
+const BALL_MAX = 900;
+const KICK_POWER = 380;
 const KICK_DURATION = 0.18; // seconds
-const KICK_REACH = 8; // extra px beyond touching to still land a kick
+const KICK_REACH = 10; // extra px beyond touching to still land a kick
 const GAME_LENGTH = 5 * 60; // seconds
 const MERCY_LEAD = 5;
+const CANVAS_ASPECT = CANVAS_W / CANVAS_H;
 
 type Team = "red" | "blue" | null;
 
