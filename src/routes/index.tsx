@@ -664,10 +664,15 @@ function EggballPage() {
         ctx.textBaseline = "middle";
         const text =
           winner === "draw" ? "Draw!" : winner === "red" ? "Red wins!" : winner === "blue" ? "Blue wins!" : "";
-        ctx.fillText(text, FIELD_W / 2, FIELD_H / 2);
+        ctx.fillText(text, FIELD_W / 2, FIELD_H / 2 - 30);
         ctx.font = "22px sans-serif";
-        ctx.fillText(`Final: Red ${scoreRed} - ${scoreBlue} Blue`, FIELD_W / 2, FIELD_H / 2 + 50);
+        ctx.fillText(`Final: Red ${scoreRed} - ${scoreBlue} Blue`, FIELD_W / 2, FIELD_H / 2 + 20);
+        if (intermission > 0) {
+          ctx.font = "bold 28px sans-serif";
+          ctx.fillText(`Next game in ${Math.ceil(intermission)}...`, FIELD_W / 2, FIELD_H / 2 + 70);
+        }
       }
+
 
       ctx.restore();
     }
