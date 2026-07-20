@@ -354,16 +354,14 @@ function EggballPage() {
 
         // Wall collision - but goal openings on left/right
         const inGoalY = ball.y > FIELD_H / 2 - GOAL_H / 2 && ball.y < FIELD_H / 2 + GOAL_H / 2;
-        // Left wall / red goal
         if (ball.x - BALL_R < 0) {
           if (inGoalY && goalCooldown <= 0) {
-            // Blue scored
             scoreBlue += 1;
             goalCooldown = 3;
             countdown = 3;
             checkEnd();
             resetPositions();
-          } else {
+          } else if (!inGoalY) {
             ball.x = BALL_R;
             ball.vx = -ball.vx * 0.7;
           }
@@ -375,7 +373,7 @@ function EggballPage() {
             countdown = 3;
             checkEnd();
             resetPositions();
-          } else {
+          } else if (!inGoalY) {
             ball.x = FIELD_W - BALL_R;
             ball.vx = -ball.vx * 0.7;
           }
@@ -387,6 +385,32 @@ function EggballPage() {
         if (ball.y + BALL_R > FIELD_H) {
           ball.y = FIELD_H - BALL_R;
           ball.vy = -ball.vy * 0.7;
+        }
+
+        // Goal post collisions — solid bumpers at the corners of each goal opening
+        const gYPost = FIELD_H / 2 - GOAL_H / 2;
+        const posts = [
+          { x: 0, y: gYPost },
+          { x: 0, y: gYPost + GOAL_H },
+          { x: FIELD_W, y: gYPost },
+          { x: FIELD_W, y: gYPost + GOAL_H },
+        ];
+        for (const post of posts) {
+          const dx = ball.x - post.x;
+          const dy = ball.y - post.y;
+          const d = Math.hypot(dx, dy);
+          const minD = BALL_R + POST_R;
+          if (d > 0 && d < minD) {
+            const nx = dx / d;
+            const ny = dy / d;
+            ball.x = post.x + nx * minD;
+            ball.y = post.y + ny * minD;
+            const vn = ball.vx * nx + ball.vy * ny;
+            if (vn < 0) {
+              ball.vx -= 2 * vn * nx * 0.85;
+              ball.vy -= 2 * vn * ny * 0.85;
+            }
+          }
         }
 
         // Ball vs players: loose realistic push. The ball only gains speed from the
