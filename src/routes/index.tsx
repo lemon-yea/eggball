@@ -303,24 +303,23 @@ function EggballPage() {
         me.x += me.vx * dt;
         me.y += me.vy * dt;
 
-        // Clamp so player cannot leave the SCREEN entirely (they can leave the field though)
-        // The canvas viewport IS the field size + goal margins; clamp inside the canvas.
-        me.x = Math.max(PLAYER_R, Math.min(FIELD_W - PLAYER_R, me.x));
-        me.y = Math.max(PLAYER_R, Math.min(FIELD_H - PLAYER_R, me.y));
+        // Clamp to the CANVAS extents (not the field). Players can leave the field
+        // (walk behind the goals / into the out-of-bounds strip), but stay on-screen.
+        me.x = Math.max(-PAD + PLAYER_R, Math.min(FIELD_W + PAD - PLAYER_R, me.x));
+        me.y = Math.max(-PAD + PLAYER_R, Math.min(FIELD_H + PAD - PLAYER_R, me.y));
 
-        // Kick input
+        // Kick input — direction is from player center toward ball (contact point),
+        // so where you hit the ball determines where it goes (like Eggball/Beatball).
         if ((keys.has("x") || keys.has(" ")) && me.kickUntil < now) {
           me.kickUntil = now + KICK_DURATION * 1000;
-          // Attempt to kick the ball if close
           const bdx = ball.x - me.x;
           const bdy = ball.y - me.y;
           const bd = Math.hypot(bdx, bdy);
-          if (bd < PLAYER_R + BALL_R + 10) {
-            const dirX = me.lastDirX || (me.team === "red" ? 1 : -1);
-            const dirY = me.lastDirY || 0;
-            const nl = Math.hypot(dirX, dirY) || 1;
-            const nvx = (dirX / nl) * KICK_POWER;
-            const nvy = (dirY / nl) * KICK_POWER;
+          if (bd > 0 && bd < PLAYER_R + BALL_R + KICK_REACH) {
+            const nx = bdx / bd;
+            const ny = bdy / bd;
+            const nvx = nx * KICK_POWER;
+            const nvy = ny * KICK_POWER;
             if (hostId === myId) {
               ball.vx = nvx;
               ball.vy = nvy;
