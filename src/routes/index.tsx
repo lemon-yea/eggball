@@ -530,10 +530,12 @@ function EggballPage() {
           ended,
           winner,
           hostId,
+          intermission,
         };
         channel.send({ type: "broadcast", event: "state", payload: state });
-        setScore({ red: scoreRed, blue: scoreBlue, timeLeft, countdown, ended, winner });
+        setScore({ red: scoreRed, blue: scoreBlue, timeLeft, countdown, ended, winner, intermission });
       }
+
 
       // Purge stale players
       for (const [id, t] of lastSeen) {
