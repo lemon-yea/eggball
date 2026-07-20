@@ -560,12 +560,26 @@ function EggballPage() {
       ctx.fillRect(-GOAL_DEPTH, gy, GOAL_DEPTH, GOAL_H);
       ctx.fillStyle = "rgba(50,110,220,0.30)";
       ctx.fillRect(FIELD_W, gy, GOAL_DEPTH, GOAL_H);
-      // Goal posts / frame
+      // Goal frame
       ctx.strokeStyle = "#ff6666";
       ctx.lineWidth = 4;
       ctx.strokeRect(-GOAL_DEPTH, gy, GOAL_DEPTH, GOAL_H);
       ctx.strokeStyle = "#6699ff";
       ctx.strokeRect(FIELD_W, gy, GOAL_DEPTH, GOAL_H);
+      // Solid goal posts (bumpers)
+      const drawPost = (x: number, y: number, color: string) => {
+        ctx.beginPath();
+        ctx.arc(x, y, POST_R, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      };
+      drawPost(0, gy, "#ffdddd");
+      drawPost(0, gy + GOAL_H, "#ffdddd");
+      drawPost(FIELD_W, gy, "#ddeaff");
+      drawPost(FIELD_W, gy + GOAL_H, "#ddeaff");
 
       // Players
       const now = performance.now();
@@ -579,12 +593,18 @@ function EggballPage() {
         ctx.lineWidth = 3;
         ctx.strokeStyle = kicking ? "#ffffff" : "#000000";
         ctx.stroke();
-        if (p.id === myId) {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, PLAYER_R + 4, 0, Math.PI * 2);
-          ctx.strokeStyle = "rgba(255,255,255,0.5)";
-          ctx.lineWidth = 2;
-          ctx.stroke();
+        // Name tag
+        if (p.name) {
+          const raw = p.name;
+          const display = raw.length > 6 ? raw.slice(0, 6) + "..." : raw;
+          ctx.font = "bold 16px sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = "rgba(0,0,0,0.75)";
+          ctx.strokeText(display, p.x, p.y + PLAYER_R + 4);
+          ctx.fillStyle = p.team === "red" ? "#ff6b6b" : "#6ea8ff";
+          ctx.fillText(display, p.x, p.y + PLAYER_R + 4);
         }
       }
       // Ball
