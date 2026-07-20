@@ -381,7 +381,9 @@ function EggballPage() {
           ball.vy = -ball.vy * 0.7;
         }
 
-        // Ball vs players: stops in front of them (touch), with pinch physics
+        // Ball vs players: loose realistic push. The ball only gains speed from the
+        // component of the player's velocity along the contact normal; it is NOT
+        // dragged sideways with the player, and it does NOT stop when the player stops.
         const allPlayers = Array.from(players.values());
         for (const p of allPlayers) {
           const dx = ball.x - p.x;
@@ -391,49 +393,49 @@ function EggballPage() {
           if (d > 0 && d < minD) {
             const nx = dx / d;
             const ny = dy / d;
-            // Push ball out
+            // Resolve overlap (positional only)
             const overlap = minD - d;
             ball.x += nx * overlap;
             ball.y += ny * overlap;
-            // If player is moving into the ball, ball takes their velocity (dribble/touch)
-            const pv = Math.hypot(p.vx, p.vy);
-            const intoBall = p.vx * nx + p.vy * ny; // positive = moving toward ball
-            if (intoBall > 0) {
-              // Simulate a "touch": ball takes player's velocity component along their heading, damped
-              ball.vx = p.vx * 0.9;
-              ball.vy = p.vy * 0.9;
-            } else {
-              // Ball hits stationary player - stop
-              ball.vx = 0;
-              ball.vy = 0;
+
+            // Transfer only the player's normal-component speed to the ball, and only
+            // if it's greater than the ball's current normal-component speed.
+            const playerAlong = p.vx * nx + p.vy * ny;
+            const ballAlong = ball.vx * nx + ball.vy * ny;
+            if (playerAlong > ballAlong) {
+              const delta = playerAlong - ballAlong;
+              ball.vx += nx * delta;
+              ball.vy += ny * delta;
             }
 
-            // Pinch detection: another player on the opposite side pushing into the ball too?
+            // Pinch detection: another player pressing into the ball from the opposite side,
+            // AND neither contact is against a wall (pure player-vs-player pinch).
             for (const q of allPlayers) {
               if (q.id === p.id) continue;
               const qdx = ball.x - q.x;
               const qdy = ball.y - q.y;
               const qd = Math.hypot(qdx, qdy);
-              if (qd < minD + 4) {
+              if (qd > 0 && qd < minD + 2) {
                 const qnx = qdx / qd;
                 const qny = qdy / qd;
-                // opposite direction?
-                if (qnx * nx + qny * ny < -0.3) {
-                  const qInto = q.vx * qnx + q.vy * qny;
-                  if (qInto > 0 && intoBall > 0) {
-                    // Pinch! Escape perpendicular
+                if (qnx * nx + qny * ny < -0.5) {
+                  const pInto = p.vx * -nx + p.vy * -ny; // p pressing toward ball
+                  const qInto = q.vx * -qnx + q.vy * -qny;
+                  if (pInto > 40 && qInto > 40) {
+                    // Escape perpendicular to the squeeze axis
                     const perpX = -ny;
                     const perpY = nx;
-                    // Choose perpendicular direction with more open space (away from center bias)
-                    const sign = (ball.y < FIELD_H / 2 ? -1 : 1);
-                    ball.vx = perpX * sign * KICK_POWER * 1.2;
-                    ball.vy = perpY * sign * KICK_POWER * 1.2;
+                    // Pick the side further from the field center vertically
+                    const sign = ball.y < FIELD_H / 2 ? -1 : 1;
+                    ball.vx = perpX * sign * KICK_POWER * 1.1;
+                    ball.vy = perpY * sign * KICK_POWER * 1.1;
                   }
                 }
               }
             }
           }
         }
+      }
       }
 
       function checkEnd() {
