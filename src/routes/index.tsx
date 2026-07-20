@@ -657,36 +657,58 @@ function EggballPage() {
   const mm = Math.floor(score.timeLeft / 60);
   const ss = Math.floor(score.timeLeft % 60).toString().padStart(2, "0");
 
+  const joinWith = (t: Exclude<Team, null>) => {
+    const trimmed = nameInput.trim().slice(0, 12);
+    const finalName = trimmed || `Player ${Math.floor(Math.random() * 999) + 1}`;
+    nameRef.current = finalName;
+    setTeam(t);
+    setJoined(true);
+  };
+
   return (
-    <div className="min-h-screen bg-neutral-900 text-white flex flex-col items-center py-4 gap-3">
-      <div className="flex items-center gap-6 text-2xl font-bold">
+    <div className="h-screen w-screen bg-neutral-900 text-white flex flex-col items-center overflow-hidden">
+      <div className="flex items-center gap-6 text-2xl font-bold py-2 shrink-0">
         <span className="text-red-400">RED {score.red}</span>
-        <span className="text-neutral-300 text-lg">{mm}:{ss}</span>
+        <span className="text-neutral-300 text-lg tabular-nums">{mm}:{ss}</span>
         <span className="text-blue-400">{score.blue} BLUE</span>
       </div>
-      <div className="relative" style={{ width: CANVAS_W, maxWidth: "100%" }}>
+      <div
+        className="relative"
+        style={{
+          width: `min(100vw, calc((100vh - 80px) * ${CANVAS_ASPECT}))`,
+          aspectRatio: `${CANVAS_W} / ${CANVAS_H}`,
+        }}
+      >
         <canvas
           ref={canvasRef}
           width={CANVAS_W}
           height={CANVAS_H}
-          style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
+          style={{ width: "100%", height: "100%", display: "block", borderRadius: 8 }}
         />
         {!joined && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/70 rounded-lg">
             <div className="bg-neutral-800 rounded-xl p-8 shadow-2xl text-center max-w-sm">
               <h1 className="text-3xl font-bold mb-2">Eggball</h1>
-              <p className="text-neutral-400 mb-6 text-sm">
+              <p className="text-neutral-400 mb-4 text-sm">
                 Pick a team to jump in. WASD/arrows to move. X or Space to kick.
               </p>
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value.slice(0, 12))}
+                maxLength={12}
+                placeholder="Your name (optional, max 12)"
+                className="w-full px-3 py-2 mb-5 rounded-md bg-neutral-700 text-white placeholder-neutral-400 outline-none focus:ring-2 focus:ring-white/40 text-center"
+              />
               <div className="flex gap-3 justify-center">
                 <button
-                  onClick={() => { setTeam("red"); setJoined(true); }}
+                  onClick={() => joinWith("red")}
                   className="px-6 py-3 rounded-lg bg-red-500 hover:bg-red-400 font-bold"
                 >
                   Join Red
                 </button>
                 <button
-                  onClick={() => { setTeam("blue"); setJoined(true); }}
+                  onClick={() => joinWith("blue")}
                   className="px-6 py-3 rounded-lg bg-blue-500 hover:bg-blue-400 font-bold"
                 >
                   Join Blue
@@ -699,7 +721,6 @@ function EggballPage() {
           </div>
         )}
       </div>
-      <div className="text-xs text-neutral-500">Move: WASD/Arrows &middot; Kick: X or Space</div>
     </div>
   );
 }
