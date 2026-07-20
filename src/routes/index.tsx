@@ -139,6 +139,7 @@ function EggballPage() {
         ball.y = payload.by;
         ball.vx = payload.bvx;
         ball.vy = payload.bvy;
+        ballKickedAt = performance.now();
       }
     });
     channel.on("broadcast", { event: "state" }, ({ payload }: { payload: GameState }) => {
