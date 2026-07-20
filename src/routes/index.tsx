@@ -103,6 +103,7 @@ function EggballPage() {
     let ended = false;
     let winner: Team | "draw" = null as Team | "draw";
     let hostId = myId;
+    let ballKickedAt = 0;
     const knownIds = new Set<string>([myId]);
 
     const keys = new Set<string>();
