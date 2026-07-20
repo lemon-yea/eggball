@@ -66,7 +66,9 @@ interface GameState {
   ended: boolean;
   winner: Team | "draw";
   hostId: string;
+  intermission: number; // seconds remaining before next game starts (0 = not in intermission)
 }
+
 
 function makeId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -75,9 +77,11 @@ function makeId() {
 function EggballPage() {
   const [team, setTeam] = useState<Team>(null);
   const [joined, setJoined] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [connected, setConnected] = useState(false);
   const [nameInput, setNameInput] = useState("");
-  const [score, setScore] = useState({ red: 0, blue: 0, timeLeft: GAME_LENGTH, countdown: 0, ended: false, winner: null as Team | "draw" });
+  const [score, setScore] = useState({ red: 0, blue: 0, timeLeft: GAME_LENGTH, countdown: 0, ended: false, winner: null as Team | "draw", intermission: 0 });
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const myIdRef = useRef<string>(makeId());
   const teamRef = useRef<Team>(null);
@@ -102,9 +106,11 @@ function EggballPage() {
     let countdown = 0; // seconds remaining in countdown; 0 = playing
     let ended = false;
     let winner: Team | "draw" = null as Team | "draw";
+    let intermission = 0; // seconds
     let hostId = myId;
     let ballKickedAt = 0;
     const knownIds = new Set<string>([myId]);
+
 
     const keys = new Set<string>();
     const keyDown = (e: KeyboardEvent) => {
@@ -151,9 +157,11 @@ function EggballPage() {
       countdown = payload.countdown;
       ended = payload.ended;
       winner = payload.winner;
+      intermission = payload.intermission ?? 0;
       hostId = payload.hostId;
-      setScore({ red: scoreRed, blue: scoreBlue, timeLeft, countdown, ended, winner });
+      setScore({ red: scoreRed, blue: scoreBlue, timeLeft, countdown, ended, winner, intermission });
     });
+
     channel.on("presence", { event: "sync" }, () => {
       const state = channel.presenceState() as Record<string, Array<{ id: string }>>;
       const ids = new Set<string>();
@@ -236,7 +244,22 @@ function EggballPage() {
 
       // Host-only: timer & countdown
       if (hostId === myId) {
-        if (!ended) {
+        if (ended) {
+          // Auto-start next game after 10s intermission
+          if (intermission > 0) {
+            intermission = Math.max(0, intermission - dt);
+            if (intermission <= 0) {
+              scoreRed = 0;
+              scoreBlue = 0;
+              timeLeft = GAME_LENGTH;
+              ended = false;
+              winner = null as Team | "draw";
+              countdown = 3;
+              intermission = 0;
+              resetPositions();
+            }
+          }
+        } else {
           if (countdown > 0) {
             countdown = Math.max(0, countdown - dt);
           } else {
@@ -244,11 +267,13 @@ function EggballPage() {
             if (timeLeft <= 0) {
               ended = true;
               winner = scoreRed > scoreBlue ? "red" : scoreBlue > scoreRed ? "blue" : "draw";
+              intermission = 10;
             }
           }
         }
         if (goalCooldown > 0) goalCooldown = Math.max(0, goalCooldown - dt);
       }
+
 
       // Move my player
       const me = getMyPlayer();
@@ -483,8 +508,10 @@ function EggballPage() {
         if (lead >= MERCY_LEAD) {
           ended = true;
           winner = scoreRed > scoreBlue ? "red" : "blue";
+          intermission = 10;
         }
       }
+
 
       // Broadcast my player state ~20Hz
       if (me && now - lastBroadcast > 50) {
@@ -505,10 +532,12 @@ function EggballPage() {
           ended,
           winner,
           hostId,
+          intermission,
         };
         channel.send({ type: "broadcast", event: "state", payload: state });
-        setScore({ red: scoreRed, blue: scoreBlue, timeLeft, countdown, ended, winner });
+        setScore({ red: scoreRed, blue: scoreBlue, timeLeft, countdown, ended, winner, intermission });
       }
+
 
       // Purge stale players
       for (const [id, t] of lastSeen) {
@@ -635,10 +664,15 @@ function EggballPage() {
         ctx.textBaseline = "middle";
         const text =
           winner === "draw" ? "Draw!" : winner === "red" ? "Red wins!" : winner === "blue" ? "Blue wins!" : "";
-        ctx.fillText(text, FIELD_W / 2, FIELD_H / 2);
+        ctx.fillText(text, FIELD_W / 2, FIELD_H / 2 - 30);
         ctx.font = "22px sans-serif";
-        ctx.fillText(`Final: Red ${scoreRed} - ${scoreBlue} Blue`, FIELD_W / 2, FIELD_H / 2 + 50);
+        ctx.fillText(`Final: Red ${scoreRed} - ${scoreBlue} Blue`, FIELD_W / 2, FIELD_H / 2 + 20);
+        if (intermission > 0) {
+          ctx.font = "bold 28px sans-serif";
+          ctx.fillText(`Next game in ${Math.ceil(intermission)}...`, FIELD_W / 2, FIELD_H / 2 + 70);
+        }
       }
+
 
       ctx.restore();
     }
@@ -663,7 +697,10 @@ function EggballPage() {
     nameRef.current = finalName;
     setTeam(t);
     setJoined(true);
+    setMenuOpen(false);
   };
+
+  const showMenu = !joined || menuOpen;
 
   return (
     <div className="h-screen w-screen bg-neutral-900 text-white flex flex-col items-center overflow-hidden">
@@ -675,7 +712,7 @@ function EggballPage() {
       <div
         className="relative"
         style={{
-          width: `min(100vw, calc((100vh - 80px) * ${CANVAS_ASPECT}))`,
+          width: `min(100vw, calc((100vh - 120px) * ${CANVAS_ASPECT}))`,
           aspectRatio: `${CANVAS_W} / ${CANVAS_H}`,
         }}
       >
@@ -685,7 +722,7 @@ function EggballPage() {
           height={CANVAS_H}
           style={{ width: "100%", height: "100%", display: "block", borderRadius: 8 }}
         />
-        {!joined && (
+        {showMenu && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/70 rounded-lg">
             <div className="bg-neutral-800 rounded-xl p-8 shadow-2xl text-center max-w-sm">
               <h1 className="text-3xl font-bold mb-2">Eggball</h1>
@@ -705,15 +742,23 @@ function EggballPage() {
                   onClick={() => joinWith("red")}
                   className="px-6 py-3 rounded-lg bg-red-500 hover:bg-red-400 font-bold"
                 >
-                  Join Red
+                  {team === "red" ? "Stay Red" : "Join Red"}
                 </button>
                 <button
                   onClick={() => joinWith("blue")}
                   className="px-6 py-3 rounded-lg bg-blue-500 hover:bg-blue-400 font-bold"
                 >
-                  Join Blue
+                  {team === "blue" ? "Stay Blue" : "Join Blue"}
                 </button>
               </div>
+              {joined && menuOpen && (
+                <button
+                  onClick={() => setMenuOpen(false)}
+                  className="mt-4 text-xs text-neutral-400 hover:text-white underline"
+                >
+                  Cancel
+                </button>
+              )}
               <p className="mt-4 text-xs text-neutral-500">
                 {connected ? "Connected" : "Connecting..."}
               </p>
@@ -721,6 +766,15 @@ function EggballPage() {
           </div>
         )}
       </div>
+      {joined && (
+        <button
+          onClick={() => setMenuOpen(true)}
+          className="mt-2 px-4 py-2 rounded-md bg-neutral-700 hover:bg-neutral-600 text-sm font-semibold shrink-0"
+        >
+          Teams
+        </button>
+      )}
     </div>
   );
 }
+
