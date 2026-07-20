@@ -603,11 +603,11 @@ function EggballPage() {
         <span className="text-neutral-300 text-lg">{mm}:{ss}</span>
         <span className="text-blue-400">{score.blue} BLUE</span>
       </div>
-      <div className="relative" style={{ width: FIELD_W, maxWidth: "100%" }}>
+      <div className="relative" style={{ width: CANVAS_W, maxWidth: "100%" }}>
         <canvas
           ref={canvasRef}
-          width={FIELD_W}
-          height={FIELD_H}
+          width={CANVAS_W}
+          height={CANVAS_H}
           style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
         />
         {!joined && (
