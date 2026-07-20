@@ -508,8 +508,10 @@ function EggballPage() {
         if (lead >= MERCY_LEAD) {
           ended = true;
           winner = scoreRed > scoreBlue ? "red" : "blue";
+          intermission = 10;
         }
       }
+
 
       // Broadcast my player state ~20Hz
       if (me && now - lastBroadcast > 50) {
