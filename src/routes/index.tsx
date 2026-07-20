@@ -66,7 +66,9 @@ interface GameState {
   ended: boolean;
   winner: Team | "draw";
   hostId: string;
+  intermission: number; // seconds remaining before next game starts (0 = not in intermission)
 }
+
 
 function makeId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
