@@ -697,7 +697,10 @@ function EggballPage() {
     nameRef.current = finalName;
     setTeam(t);
     setJoined(true);
+    setMenuOpen(false);
   };
+
+  const showMenu = !joined || menuOpen;
 
   return (
     <div className="h-screen w-screen bg-neutral-900 text-white flex flex-col items-center overflow-hidden">
@@ -709,7 +712,7 @@ function EggballPage() {
       <div
         className="relative"
         style={{
-          width: `min(100vw, calc((100vh - 80px) * ${CANVAS_ASPECT}))`,
+          width: `min(100vw, calc((100vh - 120px) * ${CANVAS_ASPECT}))`,
           aspectRatio: `${CANVAS_W} / ${CANVAS_H}`,
         }}
       >
@@ -719,7 +722,7 @@ function EggballPage() {
           height={CANVAS_H}
           style={{ width: "100%", height: "100%", display: "block", borderRadius: 8 }}
         />
-        {!joined && (
+        {showMenu && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/70 rounded-lg">
             <div className="bg-neutral-800 rounded-xl p-8 shadow-2xl text-center max-w-sm">
               <h1 className="text-3xl font-bold mb-2">Eggball</h1>
@@ -739,15 +742,23 @@ function EggballPage() {
                   onClick={() => joinWith("red")}
                   className="px-6 py-3 rounded-lg bg-red-500 hover:bg-red-400 font-bold"
                 >
-                  Join Red
+                  {team === "red" ? "Stay Red" : "Join Red"}
                 </button>
                 <button
                   onClick={() => joinWith("blue")}
                   className="px-6 py-3 rounded-lg bg-blue-500 hover:bg-blue-400 font-bold"
                 >
-                  Join Blue
+                  {team === "blue" ? "Stay Blue" : "Join Blue"}
                 </button>
               </div>
+              {joined && menuOpen && (
+                <button
+                  onClick={() => setMenuOpen(false)}
+                  className="mt-4 text-xs text-neutral-400 hover:text-white underline"
+                >
+                  Cancel
+                </button>
+              )}
               <p className="mt-4 text-xs text-neutral-500">
                 {connected ? "Connected" : "Connecting..."}
               </p>
@@ -755,6 +766,15 @@ function EggballPage() {
           </div>
         )}
       </div>
+      {joined && (
+        <button
+          onClick={() => setMenuOpen(true)}
+          className="mt-2 px-4 py-2 rounded-md bg-neutral-700 hover:bg-neutral-600 text-sm font-semibold shrink-0"
+        >
+          Teams
+        </button>
+      )}
     </div>
   );
 }
+
