@@ -15,17 +15,21 @@ export const Route = createFileRoute("/")({
 });
 
 // ---- Field constants ----
-const FIELD_W = 1200;
-const FIELD_H = 700;
-const PLAYER_R = 24;
-const BALL_R = 18;
-const GOAL_H = 220;
-const GOAL_DEPTH = 20;
+const FIELD_W = 900;
+const FIELD_H = 540;
+const PAD = 70; // padded canvas area around the field so goals + out-of-bounds are visible
+const CANVAS_W = FIELD_W + PAD * 2;
+const CANVAS_H = FIELD_H + PAD * 2;
+const PLAYER_R = 22;
+const BALL_R = 15;
+const GOAL_H = 200;
+const GOAL_DEPTH = 44;
 const PLAYER_SPEED = 320; // px/sec
 const BALL_FRICTION = 0.985;
-const BALL_MAX = 900;
-const KICK_POWER = 700;
+const BALL_MAX = 1100;
+const KICK_POWER = 780;
 const KICK_DURATION = 0.18; // seconds
+const KICK_REACH = 12; // extra px beyond touching to still land a kick
 const GAME_LENGTH = 5 * 60; // seconds
 const MERCY_LEAD = 5;
 
