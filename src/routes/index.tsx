@@ -77,9 +77,11 @@ function makeId() {
 function EggballPage() {
   const [team, setTeam] = useState<Team>(null);
   const [joined, setJoined] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [connected, setConnected] = useState(false);
   const [nameInput, setNameInput] = useState("");
-  const [score, setScore] = useState({ red: 0, blue: 0, timeLeft: GAME_LENGTH, countdown: 0, ended: false, winner: null as Team | "draw" });
+  const [score, setScore] = useState({ red: 0, blue: 0, timeLeft: GAME_LENGTH, countdown: 0, ended: false, winner: null as Team | "draw", intermission: 0 });
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const myIdRef = useRef<string>(makeId());
   const teamRef = useRef<Team>(null);
