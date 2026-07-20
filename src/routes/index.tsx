@@ -218,11 +218,12 @@ function EggballPage() {
           kickUntil: 0,
           lastDirX: t === "red" ? 1 : -1,
           lastDirY: 0,
-          name: "",
+          name: nameRef.current || `Player ${players.size + 1}`,
         };
         players.set(myId, me);
       }
       if (me.team !== t) me.team = t;
+      if (nameRef.current && me.name !== nameRef.current) me.name = nameRef.current;
       return me;
     }
 
