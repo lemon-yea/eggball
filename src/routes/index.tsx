@@ -486,12 +486,19 @@ function EggballPage() {
       if (!c) return;
       const ctx = c.getContext("2d");
       if (!ctx) return;
+      // Clear whole canvas (out-of-bounds strip)
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+      ctx.save();
+      ctx.translate(PAD, PAD);
+
       // Field background
       ctx.fillStyle = "#1f7a3a";
       ctx.fillRect(0, 0, FIELD_W, FIELD_H);
       // Stripes
       ctx.fillStyle = "rgba(255,255,255,0.04)";
-      const stripe = 80;
+      const stripe = 70;
       for (let i = 0; i < FIELD_W; i += stripe * 2) ctx.fillRect(i, 0, stripe, FIELD_H);
       // Border
       ctx.strokeStyle = "white";
@@ -504,21 +511,22 @@ function EggballPage() {
       ctx.stroke();
       // Center circle
       ctx.beginPath();
-      ctx.arc(FIELD_W / 2, FIELD_H / 2, 80, 0, Math.PI * 2);
+      ctx.arc(FIELD_W / 2, FIELD_H / 2, 70, 0, Math.PI * 2);
       ctx.stroke();
-      // Goals
+      // Goals (fully visible boxes extending OUT from the field)
       const gy = FIELD_H / 2 - GOAL_H / 2;
-      ctx.fillStyle = "rgba(220,50,50,0.35)";
-      ctx.fillRect(-GOAL_DEPTH, gy, GOAL_DEPTH + 6, GOAL_H);
-      ctx.fillStyle = "rgba(50,110,220,0.35)";
-      ctx.fillRect(FIELD_W - 6, gy, GOAL_DEPTH + 6, GOAL_H);
-      ctx.strokeStyle = "#ff5555";
-      ctx.strokeRect(0, gy, 6, GOAL_H);
-      ctx.strokeStyle = "#5588ff";
-      ctx.strokeRect(FIELD_W - 6, gy, 6, GOAL_H);
+      ctx.fillStyle = "rgba(220,50,50,0.30)";
+      ctx.fillRect(-GOAL_DEPTH, gy, GOAL_DEPTH, GOAL_H);
+      ctx.fillStyle = "rgba(50,110,220,0.30)";
+      ctx.fillRect(FIELD_W, gy, GOAL_DEPTH, GOAL_H);
+      // Goal posts / frame
+      ctx.strokeStyle = "#ff6666";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(-GOAL_DEPTH, gy, GOAL_DEPTH, GOAL_H);
+      ctx.strokeStyle = "#6699ff";
+      ctx.strokeRect(FIELD_W, gy, GOAL_DEPTH, GOAL_H);
 
       // Players
-      const me = players.get(myId);
       const now = performance.now();
       const all = Array.from(players.values());
       for (const p of all) {
@@ -552,7 +560,7 @@ function EggballPage() {
         ctx.fillStyle = "rgba(0,0,0,0.35)";
         ctx.fillRect(0, 0, FIELD_W, FIELD_H);
         ctx.fillStyle = "white";
-        ctx.font = "bold 160px sans-serif";
+        ctx.font = "bold 140px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(String(Math.ceil(countdown)), FIELD_W / 2, FIELD_H / 2);
@@ -561,15 +569,17 @@ function EggballPage() {
         ctx.fillStyle = "rgba(0,0,0,0.55)";
         ctx.fillRect(0, 0, FIELD_W, FIELD_H);
         ctx.fillStyle = "white";
-        ctx.font = "bold 72px sans-serif";
+        ctx.font = "bold 64px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         const text =
           winner === "draw" ? "Draw!" : winner === "red" ? "Red wins!" : winner === "blue" ? "Blue wins!" : "";
         ctx.fillText(text, FIELD_W / 2, FIELD_H / 2);
-        ctx.font = "24px sans-serif";
-        ctx.fillText(`Final: Red ${scoreRed} - ${scoreBlue} Blue`, FIELD_W / 2, FIELD_H / 2 + 60);
+        ctx.font = "22px sans-serif";
+        ctx.fillText(`Final: Red ${scoreRed} - ${scoreBlue} Blue`, FIELD_W / 2, FIELD_H / 2 + 50);
       }
+
+      ctx.restore();
     }
 
     requestAnimationFrame(tick);
