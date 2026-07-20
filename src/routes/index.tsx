@@ -244,7 +244,22 @@ function EggballPage() {
 
       // Host-only: timer & countdown
       if (hostId === myId) {
-        if (!ended) {
+        if (ended) {
+          // Auto-start next game after 10s intermission
+          if (intermission > 0) {
+            intermission = Math.max(0, intermission - dt);
+            if (intermission <= 0) {
+              scoreRed = 0;
+              scoreBlue = 0;
+              timeLeft = GAME_LENGTH;
+              ended = false;
+              winner = null as Team | "draw";
+              countdown = 3;
+              intermission = 0;
+              resetPositions();
+            }
+          }
+        } else {
           if (countdown > 0) {
             countdown = Math.max(0, countdown - dt);
           } else {
@@ -252,11 +267,13 @@ function EggballPage() {
             if (timeLeft <= 0) {
               ended = true;
               winner = scoreRed > scoreBlue ? "red" : scoreBlue > scoreRed ? "blue" : "draw";
+              intermission = 10;
             }
           }
         }
         if (goalCooldown > 0) goalCooldown = Math.max(0, goalCooldown - dt);
       }
+
 
       // Move my player
       const me = getMyPlayer();
