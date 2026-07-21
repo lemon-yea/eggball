@@ -840,14 +840,6 @@ function EggballPage() {
           </div>
         )}
       </div>
-      {joined && (
-        <button
-          onClick={() => setMenuOpen(true)}
-          className="mt-2 px-4 py-2 rounded-md bg-neutral-700 hover:bg-neutral-600 text-sm font-semibold shrink-0"
-        >
-          Teams
-        </button>
-      )}
     </div>
   );
 }
