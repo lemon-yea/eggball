@@ -530,18 +530,13 @@ function EggballPage() {
             ball.y += ny * overlap;
 
             if (!recentlyKicked) {
+              // Ball simply adopts the player's push velocity along the contact
+              // normal, and nothing else. If the player stops, the ball stops.
+              // If the player moves sideways, the ball is left behind (no
+              // sticking, no drift, no slingshot, no 360s).
               const playerAlong = Math.max(0, p.vx * nx + p.vy * ny);
-              // Force ball's normal component to equal the player's push speed.
-              const ballAlong = ball.vx * nx + ball.vy * ny;
-              const dAlong = playerAlong - ballAlong;
-              ball.vx += nx * dAlong;
-              ball.vy += ny * dAlong;
-              // Damp tangential component so ball doesn't get dragged sideways.
-              const tx = -ny;
-              const ty = nx;
-              const ballTan = ball.vx * tx + ball.vy * ty;
-              ball.vx -= tx * ballTan * 0.6;
-              ball.vy -= ty * ballTan * 0.6;
+              ball.vx = nx * playerAlong;
+              ball.vy = ny * playerAlong;
             }
 
             // Pinch detection: another player pressing into the ball from the opposite side,
