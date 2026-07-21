@@ -438,31 +438,39 @@ function EggballPage() {
         ball.x += ball.vx * dt;
         ball.y += ball.vy * dt;
 
-        // Wall collision - but goal openings on left/right
+        // Wall collision - but goal openings on left/right.
+        // A goal only counts when the WHOLE ball is past the goal line.
         const inGoalY = ball.y > FIELD_H / 2 - GOAL_H / 2 && ball.y < FIELD_H / 2 + GOAL_H / 2;
-        if (ball.x - BALL_R < 0) {
-          if (inGoalY && goalCooldown <= 0) {
-            scoreBlue += 1;
-            goalCooldown = 3;
-            countdown = 3;
-            checkEnd();
-            resetPositions();
-          } else if (!inGoalY) {
-            ball.x = BALL_R;
-            ball.vx = -ball.vx * 0.7;
-          }
+        if (inGoalY && ball.x + BALL_R < 0 && goalCooldown <= 0) {
+          scoreBlue += 1;
+          sfxGoal();
+          goalCooldown = 3;
+          countdown = 3;
+          checkEnd();
+          resetPositions();
+        } else if (!inGoalY && ball.x - BALL_R < 0) {
+          ball.x = BALL_R;
+          ball.vx = -ball.vx * 0.7;
         }
-        if (ball.x + BALL_R > FIELD_W) {
-          if (inGoalY && goalCooldown <= 0) {
-            scoreRed += 1;
-            goalCooldown = 3;
-            countdown = 3;
-            checkEnd();
-            resetPositions();
-          } else if (!inGoalY) {
-            ball.x = FIELD_W - BALL_R;
-            ball.vx = -ball.vx * 0.7;
-          }
+        if (inGoalY && ball.x - BALL_R > FIELD_W && goalCooldown <= 0) {
+          scoreRed += 1;
+          sfxGoal();
+          goalCooldown = 3;
+          countdown = 3;
+          checkEnd();
+          resetPositions();
+        } else if (!inGoalY && ball.x + BALL_R > FIELD_W) {
+          ball.x = FIELD_W - BALL_R;
+          ball.vx = -ball.vx * 0.7;
+        }
+        // Back walls of the goal boxes (so the ball doesn't fly off forever)
+        if (inGoalY && ball.x - BALL_R < -GOAL_DEPTH) {
+          ball.x = -GOAL_DEPTH + BALL_R;
+          ball.vx = -ball.vx * 0.5;
+        }
+        if (inGoalY && ball.x + BALL_R > FIELD_W + GOAL_DEPTH) {
+          ball.x = FIELD_W + GOAL_DEPTH - BALL_R;
+          ball.vx = -ball.vx * 0.5;
         }
         if (ball.y - BALL_R < 0) {
           ball.y = BALL_R;
