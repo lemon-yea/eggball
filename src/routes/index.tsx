@@ -28,7 +28,7 @@ const POST_R = 8;
 const PLAYER_SPEED = 190; // px/sec
 const BALL_FRICTION = 0.965;
 const BALL_MAX = 900;
-const KICK_POWER = 380;
+const KICK_POWER = 720;
 const KICK_DURATION = 0.18; // seconds
 const KICK_REACH = 10; // extra px beyond touching to still land a kick
 const GAME_LENGTH = 5 * 60; // seconds
@@ -94,6 +94,37 @@ function EggballPage() {
   useEffect(() => {
     joinedRef.current = joined;
   }, [joined]);
+
+  // Simple synthesized SFX via WebAudio (no assets)
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const getCtx = () => {
+    if (typeof window === "undefined") return null;
+    if (!audioCtxRef.current) {
+      const AC = (window.AudioContext || (window as any).webkitAudioContext);
+      if (AC) audioCtxRef.current = new AC();
+    }
+    return audioCtxRef.current;
+  };
+  const playTone = (freq: number, dur: number, type: OscillatorType = "square", vol = 0.15, slideTo?: number) => {
+    const ctx = getCtx();
+    if (!ctx) return;
+    try {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, ctx.currentTime);
+      if (slideTo !== undefined) o.frequency.exponentialRampToValueAtTime(slideTo, ctx.currentTime + dur);
+      g.gain.setValueAtTime(vol, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+      o.connect(g).connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + dur);
+    } catch {}
+  };
+  const sfxKick = () => playTone(320, 0.09, "square", 0.18, 140);
+  const sfxGoal = () => { playTone(660, 0.15, "sawtooth", 0.2, 880); setTimeout(() => playTone(880, 0.25, "sawtooth", 0.2, 1320), 120); };
+  const sfxWhistle = () => playTone(1400, 0.35, "triangle", 0.15, 1800);
+  const sfxPost = () => playTone(180, 0.06, "square", 0.15);
 
   useEffect(() => {
     const myId = myIdRef.current;
@@ -268,6 +299,7 @@ function EggballPage() {
               ended = true;
               winner = scoreRed > scoreBlue ? "red" : scoreBlue > scoreRed ? "blue" : "draw";
               intermission = 10;
+              sfxWhistle();
             }
           }
         }
@@ -340,6 +372,35 @@ function EggballPage() {
         me.x = Math.max(-PAD + PLAYER_R, Math.min(FIELD_W + PAD - PLAYER_R, me.x));
         me.y = Math.max(-PAD + PLAYER_R, Math.min(FIELD_H + PAD - PLAYER_R, me.y));
 
+        // Solid goal posts — players bump into them.
+        {
+          const gYPost = FIELD_H / 2 - GOAL_H / 2;
+          const posts = [
+            { x: 0, y: gYPost },
+            { x: 0, y: gYPost + GOAL_H },
+            { x: FIELD_W, y: gYPost },
+            { x: FIELD_W, y: gYPost + GOAL_H },
+          ];
+          for (const post of posts) {
+            const dx = me.x - post.x;
+            const dy = me.y - post.y;
+            const d = Math.hypot(dx, dy);
+            const minD = PLAYER_R + POST_R;
+            if (d > 0 && d < minD) {
+              const nx = dx / d;
+              const ny = dy / d;
+              me.x = post.x + nx * minD;
+              me.y = post.y + ny * minD;
+              // Kill velocity into the post
+              const vn = me.vx * nx + me.vy * ny;
+              if (vn < 0) {
+                me.vx -= vn * nx;
+                me.vy -= vn * ny;
+              }
+            }
+          }
+        }
+
         // Kick input — direction is from player center toward ball (contact point),
         // so where you hit the ball determines where it goes (like Eggball/Beatball).
         if ((keys.has("x") || keys.has(" ")) && me.kickUntil < now) {
@@ -352,6 +413,7 @@ function EggballPage() {
             const ny = bdy / bd;
             const nvx = nx * KICK_POWER;
             const nvy = ny * KICK_POWER;
+            sfxKick();
             if (hostId === myId) {
               ball.vx = nvx;
               ball.vy = nvy;
@@ -377,31 +439,39 @@ function EggballPage() {
         ball.x += ball.vx * dt;
         ball.y += ball.vy * dt;
 
-        // Wall collision - but goal openings on left/right
+        // Wall collision - but goal openings on left/right.
+        // A goal only counts when the WHOLE ball is past the goal line.
         const inGoalY = ball.y > FIELD_H / 2 - GOAL_H / 2 && ball.y < FIELD_H / 2 + GOAL_H / 2;
-        if (ball.x - BALL_R < 0) {
-          if (inGoalY && goalCooldown <= 0) {
-            scoreBlue += 1;
-            goalCooldown = 3;
-            countdown = 3;
-            checkEnd();
-            resetPositions();
-          } else if (!inGoalY) {
-            ball.x = BALL_R;
-            ball.vx = -ball.vx * 0.7;
-          }
+        if (inGoalY && ball.x + BALL_R < 0 && goalCooldown <= 0) {
+          scoreBlue += 1;
+          sfxGoal();
+          goalCooldown = 3;
+          countdown = 3;
+          checkEnd();
+          resetPositions();
+        } else if (!inGoalY && ball.x - BALL_R < 0) {
+          ball.x = BALL_R;
+          ball.vx = -ball.vx * 0.7;
         }
-        if (ball.x + BALL_R > FIELD_W) {
-          if (inGoalY && goalCooldown <= 0) {
-            scoreRed += 1;
-            goalCooldown = 3;
-            countdown = 3;
-            checkEnd();
-            resetPositions();
-          } else if (!inGoalY) {
-            ball.x = FIELD_W - BALL_R;
-            ball.vx = -ball.vx * 0.7;
-          }
+        if (inGoalY && ball.x - BALL_R > FIELD_W && goalCooldown <= 0) {
+          scoreRed += 1;
+          sfxGoal();
+          goalCooldown = 3;
+          countdown = 3;
+          checkEnd();
+          resetPositions();
+        } else if (!inGoalY && ball.x + BALL_R > FIELD_W) {
+          ball.x = FIELD_W - BALL_R;
+          ball.vx = -ball.vx * 0.7;
+        }
+        // Back walls of the goal boxes (so the ball doesn't fly off forever)
+        if (inGoalY && ball.x - BALL_R < -GOAL_DEPTH) {
+          ball.x = -GOAL_DEPTH + BALL_R;
+          ball.vx = -ball.vx * 0.5;
+        }
+        if (inGoalY && ball.x + BALL_R > FIELD_W + GOAL_DEPTH) {
+          ball.x = FIELD_W + GOAL_DEPTH - BALL_R;
+          ball.vx = -ball.vx * 0.5;
         }
         if (ball.y - BALL_R < 0) {
           ball.y = BALL_R;
@@ -434,6 +504,7 @@ function EggballPage() {
             if (vn < 0) {
               ball.vx -= 2 * vn * nx * 0.85;
               ball.vy -= 2 * vn * ny * 0.85;
+              if (Math.hypot(ball.vx, ball.vy) > 120) sfxPost();
             }
           }
         }
@@ -460,18 +531,13 @@ function EggballPage() {
             ball.y += ny * overlap;
 
             if (!recentlyKicked) {
+              // Ball simply adopts the player's push velocity along the contact
+              // normal, and nothing else. If the player stops, the ball stops.
+              // If the player moves sideways, the ball is left behind (no
+              // sticking, no drift, no slingshot, no 360s).
               const playerAlong = Math.max(0, p.vx * nx + p.vy * ny);
-              // Force ball's normal component to equal the player's push speed.
-              const ballAlong = ball.vx * nx + ball.vy * ny;
-              const dAlong = playerAlong - ballAlong;
-              ball.vx += nx * dAlong;
-              ball.vy += ny * dAlong;
-              // Damp tangential component so ball doesn't get dragged sideways.
-              const tx = -ny;
-              const ty = nx;
-              const ballTan = ball.vx * tx + ball.vy * ty;
-              ball.vx -= tx * ballTan * 0.6;
-              ball.vy -= ty * ballTan * 0.6;
+              ball.vx = nx * playerAlong;
+              ball.vy = ny * playerAlong;
             }
 
             // Pinch detection: another player pressing into the ball from the opposite side,
@@ -708,6 +774,14 @@ function EggballPage() {
         <span className="text-red-400">RED {score.red}</span>
         <span className="text-neutral-300 text-lg tabular-nums">{mm}:{ss}</span>
         <span className="text-blue-400">{score.blue} BLUE</span>
+        {joined && (
+          <button
+            onClick={() => setMenuOpen(true)}
+            className="ml-4 px-3 py-1 rounded-md bg-neutral-700 hover:bg-neutral-600 text-sm font-semibold"
+          >
+            Teams
+          </button>
+        )}
       </div>
       <div
         className="relative"
@@ -766,14 +840,6 @@ function EggballPage() {
           </div>
         )}
       </div>
-      {joined && (
-        <button
-          onClick={() => setMenuOpen(true)}
-          className="mt-2 px-4 py-2 rounded-md bg-neutral-700 hover:bg-neutral-600 text-sm font-semibold shrink-0"
-        >
-          Teams
-        </button>
-      )}
     </div>
   );
 }
