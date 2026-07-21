@@ -423,7 +423,6 @@ function EggballPage() {
           }
         }
       }
-      }
 
       // Host-only: ball physics
       if (hostId === myId && countdown <= 0 && !ended) {
