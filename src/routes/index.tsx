@@ -299,6 +299,7 @@ function EggballPage() {
               ended = true;
               winner = scoreRed > scoreBlue ? "red" : scoreBlue > scoreRed ? "blue" : "draw";
               intermission = 10;
+              sfxWhistle();
             }
           }
         }
