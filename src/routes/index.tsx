@@ -774,6 +774,14 @@ function EggballPage() {
         <span className="text-red-400">RED {score.red}</span>
         <span className="text-neutral-300 text-lg tabular-nums">{mm}:{ss}</span>
         <span className="text-blue-400">{score.blue} BLUE</span>
+        {joined && (
+          <button
+            onClick={() => setMenuOpen(true)}
+            className="ml-4 px-3 py-1 rounded-md bg-neutral-700 hover:bg-neutral-600 text-sm font-semibold"
+          >
+            Teams
+          </button>
+        )}
       </div>
       <div
         className="relative"
