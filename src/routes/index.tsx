@@ -95,6 +95,37 @@ function EggballPage() {
     joinedRef.current = joined;
   }, [joined]);
 
+  // Simple synthesized SFX via WebAudio (no assets)
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const getCtx = () => {
+    if (typeof window === "undefined") return null;
+    if (!audioCtxRef.current) {
+      const AC = (window.AudioContext || (window as any).webkitAudioContext);
+      if (AC) audioCtxRef.current = new AC();
+    }
+    return audioCtxRef.current;
+  };
+  const playTone = (freq: number, dur: number, type: OscillatorType = "square", vol = 0.15, slideTo?: number) => {
+    const ctx = getCtx();
+    if (!ctx) return;
+    try {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, ctx.currentTime);
+      if (slideTo !== undefined) o.frequency.exponentialRampToValueAtTime(slideTo, ctx.currentTime + dur);
+      g.gain.setValueAtTime(vol, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+      o.connect(g).connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + dur);
+    } catch {}
+  };
+  const sfxKick = () => playTone(320, 0.09, "square", 0.18, 140);
+  const sfxGoal = () => { playTone(660, 0.15, "sawtooth", 0.2, 880); setTimeout(() => playTone(880, 0.25, "sawtooth", 0.2, 1320), 120); };
+  const sfxWhistle = () => playTone(1400, 0.35, "triangle", 0.15, 1800);
+  const sfxPost = () => playTone(180, 0.06, "square", 0.15);
+
   useEffect(() => {
     const myId = myIdRef.current;
     const players = new Map<string, PlayerState>();
