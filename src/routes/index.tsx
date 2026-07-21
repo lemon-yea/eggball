@@ -503,6 +503,7 @@ function EggballPage() {
             if (vn < 0) {
               ball.vx -= 2 * vn * nx * 0.85;
               ball.vy -= 2 * vn * ny * 0.85;
+              if (Math.hypot(ball.vx, ball.vy) > 120) sfxPost();
             }
           }
         }
