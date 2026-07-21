@@ -371,6 +371,35 @@ function EggballPage() {
         me.x = Math.max(-PAD + PLAYER_R, Math.min(FIELD_W + PAD - PLAYER_R, me.x));
         me.y = Math.max(-PAD + PLAYER_R, Math.min(FIELD_H + PAD - PLAYER_R, me.y));
 
+        // Solid goal posts — players bump into them.
+        {
+          const gYPost = FIELD_H / 2 - GOAL_H / 2;
+          const posts = [
+            { x: 0, y: gYPost },
+            { x: 0, y: gYPost + GOAL_H },
+            { x: FIELD_W, y: gYPost },
+            { x: FIELD_W, y: gYPost + GOAL_H },
+          ];
+          for (const post of posts) {
+            const dx = me.x - post.x;
+            const dy = me.y - post.y;
+            const d = Math.hypot(dx, dy);
+            const minD = PLAYER_R + POST_R;
+            if (d > 0 && d < minD) {
+              const nx = dx / d;
+              const ny = dy / d;
+              me.x = post.x + nx * minD;
+              me.y = post.y + ny * minD;
+              // Kill velocity into the post
+              const vn = me.vx * nx + me.vy * ny;
+              if (vn < 0) {
+                me.vx -= vn * nx;
+                me.vy -= vn * ny;
+              }
+            }
+          }
+        }
+
         // Kick input — direction is from player center toward ball (contact point),
         // so where you hit the ball determines where it goes (like Eggball/Beatball).
         if ((keys.has("x") || keys.has(" ")) && me.kickUntil < now) {
@@ -383,6 +412,7 @@ function EggballPage() {
             const ny = bdy / bd;
             const nvx = nx * KICK_POWER;
             const nvy = ny * KICK_POWER;
+            sfxKick();
             if (hostId === myId) {
               ball.vx = nvx;
               ball.vy = nvy;
@@ -392,6 +422,7 @@ function EggballPage() {
             }
           }
         }
+      }
       }
 
       // Host-only: ball physics
